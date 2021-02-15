@@ -27,9 +27,10 @@ func newReplicaPool(replicas ...SQLDatabase) (*replicaPool, error) {
 		return nil, errors.New("minimum number of replicas servers should be 2")
 	}
 	return &replicaPool{
-		replicas:      replicas,
-		iterator:      uint64(len(replicas) - 1),
-		replicasCount: uint64(len(replicas)),
+		replicas:                replicas,
+		iterator:                uint64(len(replicas) - 1),
+		replicasCount:           uint64(len(replicas)),
+		underMaintenanceReplica: -1,
 	}, nil
 }
 

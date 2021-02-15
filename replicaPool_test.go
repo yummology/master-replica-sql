@@ -2,7 +2,6 @@ package sqlcluster
 
 import (
 	`database/sql`
-	`errors`
 	`log`
 	`reflect`
 	`testing`
@@ -13,7 +12,7 @@ import (
 func TestReplicaPoolNextIndexNoFails(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 1, 2, 0, 1, 2, 0}) {
-		log.Println("no replica should be skipped")
+		log.Println("no replica MUST be skipped")
 		t.FailNow()
 	}
 }
@@ -23,7 +22,7 @@ func TestReplicaPoolNextIndex1(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.setMaintenanceFlag(true, 1)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 2, 3, 0, 2, 3, 0}) {
-		log.Println("replica #1 should be skipped")
+		log.Println("replicaPool MUST skip replica #1")
 		t.FailNow()
 	}
 }
@@ -33,12 +32,10 @@ func TestReplicaPoolNextIndex2(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.setMaintenanceFlag(true, 2)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 1, 3, 0, 1, 3, 0}) {
-		log.Println("replica #2 should be skipped")
+		log.Println("replicaPool MUST skip replica #2")
 		t.FailNow()
 	}
 }
-
-var queryFailed = errors.New("query failed")
 
 func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil, nil)
@@ -51,15 +48,16 @@ func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
 	})
 	time.Sleep(time.Millisecond * 50)
 	if err != nil {
-		log.Println("query must be passed to the next replica, and it should not return error")
+		log.Println("replicaPool MUST pass the query to the next replica, and it SHOULD NOT return error")
+		log.Println("but it returns:", err)
 		t.FailNow()
 	}
 	if !pool.isInMaintenanceMode {
-		log.Println("cluster should go maintenance mode")
+		log.Println("replicaPool MUST go maintenance mode")
 		t.FailNow()
 	}
 	if pool.underMaintenanceReplica != 0 {
-		log.Println("replica #0 should be flagged as under maintenance")
+		log.Println("replicaPool MUST flag replica #0 under maintenance")
 		t.FailNow()
 	}
 }
@@ -75,15 +73,16 @@ func TestReplicaPoolReplica0ReturnsError(t *testing.T) {
 	})
 	time.Sleep(time.Millisecond * 50)
 	if err == nil {
-		log.Println("replica 0 must return sql.ErrNoRows")
+		log.Println("replicaPool MUST return sql.ErrNoRows from replica #0")
+		log.Println("but it returns ", err)
 		t.FailNow()
 	}
 	if pool.isInMaintenanceMode {
-		log.Println("cluster SHOULD NOT go maintenance mode")
+		log.Println("replicaPool SHOULD NOT go maintenance mode")
 		t.FailNow()
 	}
 	if pool.underMaintenanceReplica == 0 {
-		log.Println("replica #0 SHOULD NOT be flagged as under maintenance")
+		log.Println("replicaPool MUST NOT flag replica #0 under maintenance")
 		t.FailNow()
 	}
 }
