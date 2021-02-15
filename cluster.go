@@ -14,7 +14,7 @@ type cluster struct {
 }
 
 func (c *cluster) Ping() error {
-	return c.PingContext(nil)
+	return c.PingContext(context.Background())
 }
 
 func (c *cluster) PingContext(ctx context.Context) error {
@@ -30,17 +30,21 @@ func (c *cluster) PingContext(ctx context.Context) error {
 // Query executes a query that returns rows, typically a SELECT.
 // The args are for any placeholder parameters in the query.
 func (c *cluster) Query(query string, args ...interface{}) (rows *sql.Rows, err error) {
-	return c.QueryContext(nil, query, args...)
+	c.readReplicas.RunOnNextReplica(func(_ int, replica SQLDatabase) error {
+		rows, err = replica.Query(query, args...)
+		return err
+	})
+	return rows, err
 }
 
 // QueryContext executes a query that returns rows, typically a SELECT.
 // The args are for any placeholder parameters in the query.
 func (c *cluster) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
-	err = c.readReplicas.RunOnNextReplica(ctx, func(context context.Context, _ int, replica SQLDatabase) error {
-		rows, err = replica.QueryContext(context, query, args...)
+	c.readReplicas.RunOnNextReplica(func(_ int, replica SQLDatabase) error {
+		rows, err = replica.QueryContext(ctx, query, args...)
 		return err
 	})
-	return
+	return rows, err
 }
 
 // QueryRow executes a query that is expected to return at most one row.
@@ -60,11 +64,11 @@ func (c *cluster) QueryRow(query string, args ...interface{}) *sql.Row {
 // Otherwise, the *Row's Scan scans the first selected row and discards
 // the rest.
 func (c *cluster) QueryRowContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Row) {
-	c.readReplicas.RunOnNextReplica(ctx, func(context context.Context, _ int, replica SQLDatabase) error {
-		rows = replica.QueryRowContext(context, query, args...)
-		return nil
+	c.readReplicas.RunOnNextReplica(func(_ int, replica SQLDatabase) error {
+		rows = replica.QueryRowContext(ctx, query, args...)
+		return ctx.Err()
 	})
-	return
+	return rows
 }
 
 func (c *cluster) Begin() (*sql.Tx, error) {

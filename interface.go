@@ -9,9 +9,9 @@ import (
 type SQLDatabase interface {
 	Ping() error
 	PingContext(ctx context.Context) error
-	// Query(query string, args ...interface{}) (*sql.Rows, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	// QueryRow(query string, args ...interface{}) *sql.Row
+	QueryRow(query string, args ...interface{}) *sql.Row
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 	Begin() (*sql.Tx, error)
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
@@ -25,19 +25,13 @@ type SQLDatabase interface {
 	SetMaxOpenConns(n int)
 }
 
-type Config struct {
-	master         SQLDatabase
-	readReplicas   []SQLDatabase
-	replicaTimeout time.Duration
-}
-
-func New(config Config) (SQLDatabase, error) {
-	pool, err := newReplicaPool(config.replicaTimeout, config.readReplicas...)
+func New(master SQLDatabase, replicas ...SQLDatabase) (SQLDatabase, error) {
+	pool, err := newReplicaPool(replicas...)
 	if err != nil {
 		return nil, err
 	}
 	return &cluster{
-		master:       config.master,
+		master:       master,
 		readReplicas: pool,
 	}, nil
 }

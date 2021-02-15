@@ -16,21 +16,19 @@ type replicaPool struct {
 	iterator                uint64
 	replicasCount           uint64
 	underMaintenanceReplica int
-	timeout                 time.Duration
 	isInMaintenanceMode     bool
 	mutex                   sync.Mutex
 	testMode                bool
 }
 
 // newReplicaPool is simple `replicaPool` factory
-func newReplicaPool(timeout time.Duration, replicas ...SQLDatabase) (*replicaPool, error) {
+func newReplicaPool(replicas ...SQLDatabase) (*replicaPool, error) {
 	if len(replicas) < 2 {
 		return nil, errors.New("minimum number of replicas servers should be 2")
 	}
 	return &replicaPool{
 		replicas:      replicas,
 		iterator:      uint64(len(replicas) - 1),
-		timeout:       timeout,
 		replicasCount: uint64(len(replicas)),
 	}, nil
 }
@@ -75,40 +73,17 @@ func (pool *replicaPool) nextIndex() int {
 }
 
 // RunOnNextReplica provides the next selected replica and a context as a parameter to a function
-func (pool *replicaPool) RunOnNextReplica(
-	mainContext context.Context,
-	fn func(ctx context.Context, replicaIndex int, replica SQLDatabase) error,
-) error {
-
+func (pool *replicaPool) RunOnNextReplica(fn func(replicaIndex int, replica SQLDatabase) error) (err error) {
 	for true {
-
-		replicaCTX, cancel := context.WithTimeout(context.Background(), pool.timeout)
 		index := pool.nextIndex()
-		chErr := make(chan error)
-		go func() {
-			chErr <- fn(mainContext, index, pool.replicas[index])
-		}()
-
-		select {
-		// request has been canceled, by any possible reasons
-		case <-mainContext.Done():
-			cancel()
-			return mainContext.Err()
-
-		// replica timeout happened
-		case <-replicaCTX.Done():
+		err = fn(index, pool.replicas[index])
+		if errors.Is(err, sql.ErrConnDone) {
 			go pool.maintenanceHandler(index)
-
-		// execution finished
-		case err := <-chErr:
-			if ! errors.Is(err , sql.ErrConnDone) {
-				return err
-			}
-			go pool.maintenanceHandler(index)
+			continue
 		}
+		break
 	}
-
-	return nil
+	return err
 }
 
 // maintenanceHandler handles the replica server maintenance flag.
@@ -121,7 +96,7 @@ func (pool *replicaPool) maintenanceHandler(index int) {
 		return
 	}
 	pool.setMaintenanceFlag(true, index)
-	if ! pool.testMode {
+	if !pool.testMode {
 		go pool.watchReplica(index)
 	}
 }
@@ -130,7 +105,6 @@ func (pool *replicaPool) maintenanceHandler(index int) {
 // soon as getting response removes the maintenance flag over it
 func (pool *replicaPool) watchReplica(index int) {
 	ticker := time.NewTicker(time.Second)
-	return
 	for {
 		<-ticker.C
 		if err := pool.replicas[index].Ping(); err == nil {

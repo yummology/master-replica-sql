@@ -1,63 +1,65 @@
 package sqlcluster
 
 import (
-	`context`
+	`database/sql`
 	`errors`
+	`log`
 	`reflect`
 	`testing`
 	`time`
 )
 
-// the idea to test this package is to mock SQLDatabase servers using
-// "github.com/golang/mock/gomock" package
-//
-// we can use 2 replicas, the first one should through timeout error
-// and the second one should response normally.
-// since on the creation of the replic
-
 // 3 replicas, none of them are down
-func TestReplicaPool_nextIndex(t *testing.T) {
-	pool, _ := newReplicaPool(time.Second, nil, nil, nil)
+func TestReplicaPoolNextIndexNoFails(t *testing.T) {
+	pool, _ := newReplicaPool(nil, nil, nil)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 1, 2, 0, 1, 2, 0}) {
+		log.Println("no replica should be skipped")
 		t.FailNow()
 	}
 }
 
 // 4 replica, second one is down
-func TestReplicaPool_nextIndex1(t *testing.T) {
-	pool, _ := newReplicaPool(time.Second, nil, nil, nil, nil)
+func TestReplicaPoolNextIndex1(t *testing.T) {
+	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.setMaintenanceFlag(true, 1)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 2, 3, 0, 2, 3, 0}) {
+		log.Println("replica #1 should be skipped")
 		t.FailNow()
 	}
 }
 
 // 4 replica, 3rd one is down
-func TestReplicaPool_nextIndex2(t *testing.T) {
-	pool, _ := newReplicaPool(time.Second, nil, nil, nil, nil)
+func TestReplicaPoolNextIndex2(t *testing.T) {
+	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.setMaintenanceFlag(true, 2)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 1, 3, 0, 1, 3, 0}) {
+		log.Println("replica #2 should be skipped")
 		t.FailNow()
 	}
 }
 
 var queryFailed = errors.New("query failed")
 
-// the first replica should take
-func TestReplicaPool_RunOnNextReplica(t *testing.T) {
-	pool, _ := newReplicaPool(time.Millisecond*200, nil, nil, nil, nil)
+func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
+	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.testMode = true
-	err := pool.RunOnNextReplica(
-		context.Background(),
-		waitInNthReplicaFor(0, time.Millisecond*300),
-	)
+	err := pool.RunOnNextReplica(func(i int, replica SQLDatabase) error {
+		if i == 0 {
+			return sql.ErrConnDone
+		}
+		return nil
+	})
+	time.Sleep(time.Millisecond * 50)
 	if err != nil {
+		log.Println("query must be passed to the next replica, and it should not return error")
 		t.FailNow()
 	}
 	if !pool.isInMaintenanceMode {
+		log.Println("cluster should go maintenance mode")
 		t.FailNow()
 	}
 	if pool.underMaintenanceReplica != 0 {
+		log.Println("replica #0 should be flagged as under maintenance")
 		t.FailNow()
 	}
 }
@@ -68,24 +70,4 @@ func getIndexes(n int, pool *replicaPool) (indexes []int) {
 		indexes = append(indexes, pool.nextIndex())
 	}
 	return
-}
-
-func waitInNthReplicaFor(index int, d time.Duration) func(ctx context.Context, i int, replica SQLDatabase) error {
-	return func(ctx context.Context, i int, replica SQLDatabase) error {
-		chErr := make(chan error)
-		go func() {
-			if i == index {
-				time.Sleep(d)
-				chErr <- queryFailed
-			}
-			chErr <- nil
-		}()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-chErr:
-			return err
-		}
-		return nil
-	}
 }
