@@ -40,8 +40,10 @@ func TestReplicaPoolNextIndex2(t *testing.T) {
 func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.testMode = true
-	err := pool.RunOnNextReplica(func(i int, replica SQLDatabase) error {
+	err := pool.RunOnNextReplica(func(i int, _ SQLDatabase) error {
 		if i == 0 {
+			// return sql.ErrConnDone from replica #0
+			// fake it like it's disconnected
 			return sql.ErrConnDone
 		}
 		return nil
@@ -65,8 +67,9 @@ func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
 func TestReplicaPoolReplica0ReturnsError(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil, nil)
 	pool.testMode = true
-	err := pool.RunOnNextReplica(func(i int, replica SQLDatabase) error {
+	err := pool.RunOnNextReplica(func(i int, _ SQLDatabase) error {
 		if i == 0 {
+			// return sql.ErrNoRows from replica #0
 			return sql.ErrNoRows
 		}
 		return nil
