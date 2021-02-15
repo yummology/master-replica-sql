@@ -2,34 +2,27 @@
 
 ## Does the library fulfill the requirements described in the background section?
 
-- No. Replica servers can go down at any time, even in the middle of running a query.  
+- No, it doesn't. Replica servers can go down at any time, even in the middle of
+  executing a query. So the package should pass the query to the next replica if
+  this happens.  
 
-    __Solution: All the receivers that are calling the remote server should have
-    a context with timeout. There should be a mechanism to pass the query 
-    to the next available replica when time out happens.__
+    __Solution: I added a mechanism that checks tries passing the query to the
+    next replica when `sql.ErrConnDone` happens.__
 
 ## Is the library easy to use?
 
-- Easy enough to use, but it has lots of flaws that lets the user go wrong, 
-  especially for a new team member.
-
+- Easy enough to use, but with a configuration struct there will be no point to
+  go wrong with setting it up, especially for a new team member.
+  
+     __Solution: configuration struct added__
+  
 - The package doesn't have documentation. Even simple block of `how to use` 
-  code could make a huge difference in adoptability.  
+  code could make a huge difference in adoptability. Most of the time developers
+  don't even bother trying a package that doesn't have readme file.
   
-     __adding__
-
-- It doesn't encapsulate enough of the process and leaves the user an opening to 
-  misuse the package quickly.  
-  
-     __Solution: I added `replicaPool` to handle replica servers __
+     __Solution: README.md file added__
 
 ## Is the code quality assured?
-
-- looking at the fact that the package doesn't have tests is enough to not to be 
-  sure about the quality.  
-  
-    __Solution: I'm trying to add tests. It requires creating some mocks that 
-    acts like a disconnected replica. I'm figuring it out.__
 
 - Using `panic` instead of handling and returning a proper error is a code smell.  
 
@@ -41,14 +34,18 @@
   showcase, or possibility check. The better way to do this is to use `[]*sql.DB` 
   instead of `[]interface{}`.
       
-     __Solution: I added `SQLDatabase` interface__
-      
-- The `NewDB` could take an interface satisfied by *sql.DB in the parameters. 
-  Testing it will be possible this way.
+     __Solution: The `NewDB` could take an interface satisfied by `*sql.DB` in 
+     the parameters. I added `SQLDatabase` interface so testing it will be 
+     possible this way.__
+
+- looking at the fact that the package doesn't have tests is enough to not to be 
+  sure about the quality.  
   
-    __Solution: I tried to use SQLDatabase interface as parameters but when I 
-    after I added the timeout duration for the read replicas it became messy. 
-    So I used a configuration struct as a parameter instead.__
+    __Solution: I added tests for the replicaPool functionality. But, to test the
+    cluster itself it requires using mockery using `github.com/golang/mock`.
+    By adding and using the `SQLDatabase` interface, it's possible to generate a
+    mock struct for it by using `mockgen`, but I haven't tried this package 
+    for mocking yet.__
 
 - The `DB.Close` func is not returning any error.
     
@@ -56,46 +53,49 @@
     
 ## Is the code readable?
 
-- The code is readable enough, with some improvement in namings
+The code is readable enough, with some improvement in namings
 
-    - `readReplicaRoundRobin` doesn't feel right. Appending `RoundRobin` in 
-      the function name doesn't help readability since there is only one algorithm 
-      to choose the next replica with. Maybe `pickReadReplica` or `nextReadReplica` 
-      is much more readable and descriptive.  
-      
-      We could mention the choosing algorithm in the comments. This way if we 
-      decide to change the algorithm we don't need to rename it everywhere.   
-      
-      __Solution: I encapsulated the iterator functionality and replica selection
-      algorithm in `replicaPool` struct.__
+- The naming for `DB` type is misleading since it's not a database. It's more 
+  like a cluster manager. `Cluster` could be more meaningful for this struct.
+
+     __fixed. It's now called `Cluster` __ 
+
+- It doesn't encapsulate enough of the process and leaves the user an opening to 
+  misuse the package quickly.  
+
+     __Solution: I added `replicaPool` to handle proxying replica servers, and 
+     detecting if they are in maintenance state__
+ 
+- `readReplicaRoundRobin` doesn't feel a right naming. Appending `RoundRobin` in 
+  the function name doesn't help readability since there is only one algorithm 
+  to choose the next replica with. We could mention the selection algorithm in 
+  the comments. This way if we decide to change the algorithm we don't need 
+  to rename function calls everywhere.   
+  
+     __Solution: I encapsulated the iterator functionality and replica selection
+     algorithm in `replicaPool` struct.__
+
+- `DB.count` is an iterator that it's current naming doesn't make sense.
+
+     __changed to `replicaPool.iterator`__
+
+- Functions don't have functionality comments. Even copying a comment from the
+  `sql` package which describes the functionality is better than having no comment.
     
-    - The naming for `DB` type is misleading since it's not a database. It's more 
-      like a cluster manager. `Cluster` could be more meaningful for this struct.
-
-    __fixed. It's now called `Cluster` __ 
-
-    - `DB.count` is an iterator that it's current naming doesn't make sense.
-    
-    __changed to `indexIterator.indexIterator`__ 
-
-- Functions don't have functionality comments. Even copying a comment from another 
-  package which describes the functionality is better than having no comment.
-    
-  __I added the comments on signatures in the `SQLDatabase` interface. 
-  The **downside** is the original comments get old over time. This is something 
-  that I need to get suggestion from other team members.__ 
+     __I added the comments.
+     The **downside** is the original comments get old over time. This is something 
+     that I need to get suggestion from other team members.__ 
     
 ## Is the library thread-safe?
   
 - `db.count` faces data race problem.  
 
   __Solution: It could be solved by using `mutex.Lock` but I avoid using it 
-  whenever I can since it makes the code a little messy and it's a little 
-  bit slower compared to  `atomic` package.__
+  whenever I can since it makes the code a little messy, and it's a little slower 
+  compared to `atomic` package.__
 
 - `DB.readReplicas` doesn't have any issue since the only time it is accessed
-  for writing is in `NewDB` func.
+  for writing is on creation time.
 
   __There's no need to do anything for now. If we decide to add dynamic replica 
-  injection for in the cluster, we should add mutex lock to prevent data race 
-  problem.__
+  injection for in the cluster, we should add mutex lock to prevent data race.__

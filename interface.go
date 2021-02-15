@@ -25,13 +25,20 @@ type SQLDatabase interface {
 	SetMaxOpenConns(n int)
 }
 
-func New(master SQLDatabase, replicas ...SQLDatabase) (SQLDatabase, error) {
-	pool, err := newReplicaPool(replicas...)
+type Replicas []SQLDatabase
+
+type Config struct {
+	Master       SQLDatabase
+	ReadReplicas Replicas
+}
+
+func New(config Config) (SQLDatabase, error) {
+	pool, err := newReplicaPool(config.ReadReplicas...)
 	if err != nil {
 		return nil, err
 	}
 	return &cluster{
-		master:       master,
+		master:       config.Master,
 		readReplicas: pool,
 	}, nil
 }

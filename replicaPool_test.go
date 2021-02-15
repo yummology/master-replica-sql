@@ -9,6 +9,18 @@ import (
 )
 
 // 3 replicas, none of them are down
+func TestClusterNew(t *testing.T) {
+	_, err := New(Config{
+		Master:       nil,
+		ReadReplicas: Replicas{nil},
+	})
+	if err == nil {
+		log.Println("creating a cluster with less that 2 replicas MUST return error")
+		t.FailNow()
+	}
+}
+
+// 3 replicas, none of them are down
 func TestReplicaPoolNextIndexNoFails(t *testing.T) {
 	pool, _ := newReplicaPool(nil, nil, nil)
 	if !reflect.DeepEqual(getIndexes(7, pool), []int{0, 1, 2, 0, 1, 2, 0}) {

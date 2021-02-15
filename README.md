@@ -16,37 +16,31 @@ requires Go version 1.12 or greater.
 
 ```go
 func Main() {
-	conf := sqlcluster.Config {
-
+	
+    master, err := sql.Open("mysql", "username:password@tcp(127.0.0.1:3306)/test")
+    if err != nil {
+        panic(err.Error())
     }
-    sqlcluster.New()
+    replica1, err := sql.Open("mysql", "username:password@tcp(127.0.0.2:3306)/test")
+    if err != nil {
+        panic(err.Error())
+    }
+    replica2, err := sql.Open("mysql", "username:password@tcp(127.0.0.3:3306)/test")
+    if err != nil {
+        panic(err.Error())
+    }
+    replica3, err := sql.Open("mysql", "username:password@tcp(127.0.0.4:3306)/test")
+    if err != nil {
+        panic(err.Error())
+    }
 
+	cluster, err := sqlcluster.New(sqlcluster.Config{
+		Master:       master,
+		ReadReplicas: sqlcluster.Replicas{replica1, replica2, replica3},
+	})
+    if err != nil {
+        panic(err.Error())
+    }
 
 }
 ```
-
-### What is this repository for? ###
-
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
-
-### How do I get set up? ###
-
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
