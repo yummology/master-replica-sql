@@ -16,7 +16,7 @@
 - The package doesn't have documentation. Even simple block of `how to use` 
   code could make a huge difference in adoptability.  
   
-     __adding__ 
+     __adding__
 
 - It doesn't encapsulate enough of the process and leaves the user an opening to 
   misuse the package quickly.  
