@@ -64,6 +64,30 @@ func TestReplicaPoolReplica0UnderMaintenance(t *testing.T) {
 	}
 }
 
+func TestReplicaPoolReplica0ReturnsError(t *testing.T) {
+	pool, _ := newReplicaPool(nil, nil, nil, nil)
+	pool.testMode = true
+	err := pool.RunOnNextReplica(func(i int, replica SQLDatabase) error {
+		if i == 0 {
+			return sql.ErrNoRows
+		}
+		return nil
+	})
+	time.Sleep(time.Millisecond * 50)
+	if err == nil {
+		log.Println("replica 0 must return sql.ErrNoRows")
+		t.FailNow()
+	}
+	if pool.isInMaintenanceMode {
+		log.Println("cluster SHOULD NOT go maintenance mode")
+		t.FailNow()
+	}
+	if pool.underMaintenanceReplica == 0 {
+		log.Println("replica #0 SHOULD NOT be flagged as under maintenance")
+		t.FailNow()
+	}
+}
+
 // getIndexes gets N indexes from pool and returns in a slice
 func getIndexes(n int, pool *replicaPool) (indexes []int) {
 	for i := 0; i < n; i++ {
