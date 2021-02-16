@@ -32,15 +32,14 @@ func Main() {
     replica3, err := sql.Open("mysql", "username:password@tcp(127.0.0.4:3306)/test")
     if err != nil {
         panic(err.Error())
-    }
-
-	cluster, err := sqlcluster.New(sqlcluster.Config{
-		Master:       master,
-		ReadReplicas: sqlcluster.Replicas{replica1, replica2, replica3},
-	})
+    }  
+  
+    cluster, err := sqlcluster.New(sqlcluster.Config{
+        Master:       master,
+    ReadReplicas: sqlcluster.Replicas{replica1, replica2, replica3},
+    })
     if err != nil {
         panic(err.Error())
     }
-
 }
 ```

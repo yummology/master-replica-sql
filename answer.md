@@ -6,8 +6,15 @@
   executing a query. So the package should pass the query to the next replica if
   this happens.  
 
-    __Solution: I added a mechanism that checks tries passing the query to the
-    next replica when `sql.ErrConnDone` happens.__
+    __Solution: I added a mechanism that checks databases response for connection
+    problems and flags the replica as `underMaintenance` and stops sending the
+    requests to that replica. Then it starts pinging it and as soon as it pings
+    back it starts directing the queries to it.__   
+    
+    __Note: Since I haven't worked with MySQL replication before I don't know if 
+    the data in the replica will be out of sync after it goes back online or not
+    and if it's even important for the project to let it some time to sync. This
+    can be fixed by adding another flag named as `syncingRelica` if needed.__
 
 ## Is the library easy to use?
 
@@ -64,7 +71,12 @@ The code is readable enough, with some improvement in namings
   misuse the package quickly.  
 
      __Solution: I added `replicaPool` to handle proxying replica servers, and 
-     detecting if they are in maintenance state__
+     detecting if they are in maintenance state.
+       
+     Also, It's possible to rename `replicaPool` to `singleReplication` and add
+     an interface called `replicationTopology` and use it instead of `*replicaPool`
+     in the cluster, so the cluster can take a different configuration struct for
+     different replication topologies.__
  
 - `readReplicaRoundRobin` doesn't feel a right naming. Appending `RoundRobin` in 
   the function name doesn't help readability since there is only one algorithm 
@@ -77,7 +89,8 @@ The code is readable enough, with some improvement in namings
 
 - `DB.count` is an iterator that it's current naming doesn't make sense.
 
-     __changed to `replicaPool.iterator`__
+     __I chose `replicaPool.iterator` but `currentIndex` and `indexIterator` were
+     my other options.__
 
 - Functions don't have functionality comments. Even copying a comment from the
   `sql` package which describes the functionality is better than having no comment.
